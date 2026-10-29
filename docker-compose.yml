@@ -1,0 +1,25 @@
+services:
+  api:                          # the FastAPI service being monitored
+    build: .
+    ports: ["8000:8000"]
+
+  prometheus:                   # collects metrics every 5s, checks the alert rules
+    image: prom/prometheus:v2.53.0
+    ports: ["9090:9090"]
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./monitoring/alert_rules.yml:/etc/prometheus/alert_rules.yml:ro
+
+  alertmanager:                 # sends the alerts to Slack / Email
+    image: prom/alertmanager:v0.27.0
+    ports: ["9093:9093"]
+    volumes:
+      - ./monitoring/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
+
+  grafana:                      # dashboard (loaded automatically)
+    image: grafana/grafana:10.4.2
+    ports: ["3000:3000"]
+    volumes:
+      - ./monitoring/grafana-datasource.yml:/etc/grafana/provisioning/datasources/datasource.yml:ro
+      - ./monitoring/grafana-dashboards.yml:/etc/grafana/provisioning/dashboards/dashboards.yml:ro
+      - ./monitoring/grafana-dashboard.json:/var/lib/grafana/dashboards/api-monitoring.json:ro

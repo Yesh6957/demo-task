@@ -1,0 +1,30 @@
+# Alertmanager sends every alert to Slack AND Email.
+# Replace the CHANGE-ME values (README explains how). Never commit real secrets.
+
+global:
+  smtp_smarthost: "smtp.gmail.com:587"
+  smtp_from: "CHANGE-ME@gmail.com"
+  smtp_auth_username: "CHANGE-ME@gmail.com"
+  smtp_auth_password: "CHANGE-ME-GMAIL-APP-PASSWORD"
+
+route:
+  receiver: team
+  group_by: [alertname]       # same alert type = one message
+  group_wait: 10s             # wait a little before the first message
+  group_interval: 1m          # how soon later changes (new alert, RESOLVED) are sent. Default is 5m: too slow for a demo
+  repeat_interval: 1h         # remind every hour while still broken
+
+receivers:
+  - name: team
+    slack_configs:
+      - api_url: "https://hooks.slack.com/services/CHANGE/ME/WEBHOOK"
+        channel: "#api-alerts"
+        send_resolved: true
+        title: '[{{ .Status | toUpper }}] {{ .CommonLabels.alertname }}: {{ .CommonAnnotations.summary }}'
+        text: '{{ range .Alerts }}{{ .Annotations.description }} {{ end }}'
+    email_configs:
+      - to: "CHANGE-ME-oncall@example.com"
+        send_resolved: true
+    # Optional phone call (PagerDuty phones the on-call person). Uncomment and add your key:
+    # pagerduty_configs:
+    #   - routing_key: "CHANGE-ME-PAGERDUTY-KEY"

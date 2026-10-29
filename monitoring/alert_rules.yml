@@ -1,0 +1,63 @@
+# "for:" = how long the problem must last before the alert fires.
+# Short here so the demo reacts quickly. Production: 1-5 minutes.
+groups:
+  - name: api-alerts
+    rules:
+
+      # ---- the 5 required alerts ----
+      - alert: APIDown
+        expr: up{job="fastapi"} == 0
+        for: 15s
+        labels: {severity: critical}
+        annotations:
+          summary: "API is DOWN"
+          description: "Prometheus cannot reach the API. Check: docker compose ps  and  docker compose logs api"
+
+      - alert: HighResponseTime
+        expr: histogram_quantile(0.95, sum by (le, endpoint) (rate(http_request_duration_seconds_bucket[1m]))) > 3
+        for: 15s
+        labels: {severity: warning}
+        annotations:
+          summary: "Slow responses on {{ $labels.endpoint }}"
+          description: 'p95 response time of {{ $labels.endpoint }} is {{ $value | humanizeDuration }} (limit 3s). Check: docker compose logs api | grep Slow'
+
+      - alert: Http500Errors
+        expr: sum by (endpoint) (increase(http_requests_total{status="500"}[1m])) > 0
+        for: 0s
+        labels: {severity: critical}
+        annotations:
+          summary: "HTTP 500 errors on {{ $labels.endpoint }}"
+          description: '{{ $value | printf "%.0f" }} server error(s) on {{ $labels.endpoint }} in the last minute. Check: docker compose logs api | grep ERROR'
+
+      - alert: HighFailureRate
+        expr: sum(rate(http_requests_total{status=~"[45].."}[1m])) / sum(rate(http_requests_total[1m])) > 0.2
+        for: 15s
+        labels: {severity: warning}
+        annotations:
+          summary: "High failure rate"
+          description: '{{ $value | humanizePercentage }} of requests are failing (limit 20%). Check the dashboard panel "Failures by endpoint & status"'
+
+      - alert: ServiceUnhealthy
+        expr: service_health_status == 0
+        for: 15s
+        labels: {severity: critical}
+        annotations:
+          summary: "Health check is failing"
+          description: "GET /health reports unhealthy. Check: curl localhost:8000/health  and  docker compose logs api"
+
+      # ---- two alerts that name the exact cause (scenarios 1 and 4) ----
+      - alert: AuthFailuresSpike
+        expr: sum by (endpoint) (increase(http_requests_total{status="401"}[1m])) > 3
+        for: 0s
+        labels: {severity: warning}
+        annotations:
+          summary: "Authentication failures on {{ $labels.endpoint }}"
+          description: '{{ $value | printf "%.0f" }} HTTP 401 responses in the last minute: wrong or missing API key. Check: docker compose logs api | grep "Auth failed"'
+
+      - alert: RateLimitExceeded
+        expr: sum by (endpoint) (increase(http_requests_total{status="429"}[1m])) > 3
+        for: 0s
+        labels: {severity: warning}
+        annotations:
+          summary: "Rate limit hit on {{ $labels.endpoint }}"
+          description: '{{ $value | printf "%.0f" }} HTTP 429 responses in the last minute: a client sends too many requests. Check: docker compose logs api | grep "Rate limit"'
